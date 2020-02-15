@@ -3,10 +3,10 @@ package com.sda;
 import com.sda.model.Coin;
 import com.sda.model.Product;
 import com.sda.model.Type;
+import com.sda.service.CoinComparator;
 import com.sda.service.IOService;
 import com.sda.service.PaymentService;
 import com.sda.service.ProductFactory;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
@@ -16,16 +16,16 @@ public class VendingMachine {
   private Map<Integer, List<Product>> productStock;
   private Map<Coin, Integer> coinStock;
 
-  private ProductFactory productFactory;
-  private IOService ioService;
-  private PaymentService paymentService;
+  private final ProductFactory productFactory;
+  private final IOService ioService;
+  private final PaymentService paymentService;
 
   public VendingMachine() {
-    coinStock = new TreeMap<>();
+    coinStock = new TreeMap<>(new CoinComparator());
     productStock = new TreeMap<>();
     ioService = new IOService();
     productFactory = new ProductFactory();
-    paymentService = new PaymentService();
+    paymentService = new PaymentService(ioService, coinStock);
   }
 
   public void loadProducts() {
@@ -40,11 +40,15 @@ public class VendingMachine {
     while (true) {
       displayMenu();
       int userInputCode = ioService.readUserInput();
-      if (userInputCode == 1234) {
+      if (isCodeToShutdown(userInputCode)) {
         break;
       }
       processUserInput(userInputCode);
     }
+  }
+
+  private boolean isCodeToShutdown(int userInputCode) {
+    return userInputCode == 1234;
   }
 
   private void processUserInput(int userInputCode) {
@@ -61,12 +65,20 @@ public class VendingMachine {
       return;
     }
     //aici stiu sigur ca am produsul pe stoc
-    boolean paymentSuccessful = paymentService.processPaymentFor(userInputCode);
+
+    Product selectedProduct = getProduct(userInputCode);
+    ioService.displayMessage("You have selected " + selectedProduct.getName());
+    boolean paymentSuccessful = paymentService.processPaymentOf(selectedProduct.getPrice());
     if (paymentSuccessful) {
       releaseProduct(userInputCode);
     } else {
       ioService.displayMessage("Something went wrong. Please retry holding your fingers crossed!");
     }
+  }
+
+  private Product getProduct(int userInputCode) {
+    List<Product> products = productStock.get(userInputCode);
+    return products.get(0);
   }
 
   private void releaseProduct(int userInputCode) {
@@ -76,7 +88,8 @@ public class VendingMachine {
   }
 
   private boolean isInStock(int userInputCode) {
-    List<Product> productsHavingUserInputCode = productStock.get(userInputCode);
+    List<Product> productsHavingUserInputCode =
+        productStock.get(userInputCode);
     int numberOfProductsAvailable = productsHavingUserInputCode.size();
     return numberOfProductsAvailable > 0;
     // exactly the same with the following:
@@ -102,4 +115,11 @@ public class VendingMachine {
     ioService.displayMessage("Type pin to shutdown the machine.");
   }
 
+  public void loadCoins() {
+
+    coinStock.put(Coin.CINCI, 34);
+    coinStock.put(Coin.CINCIZECI, 24);
+    coinStock.put(Coin.UNU, 2);
+    coinStock.put(Coin.ZECE, 16);
+  }
 }
